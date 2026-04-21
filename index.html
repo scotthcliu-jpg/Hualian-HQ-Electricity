@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>花蓮三場地用電儀表板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft JhengHei", "微軟正黑體", Arial, sans-serif;
+    background: #f0f2f5;
+    color: #333;
+    padding: 24px;
+  }
+  .dashboard-header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .dashboard-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a3a5c;
+    letter-spacing: 1px;
+  }
+  .dashboard-header p {
+    font-size: 13px;
+    color: #666;
+    margin-top: 6px;
+  }
+
+  /* KPI Cards */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    border-left: 4px solid #ccc;
+  }
+  .kpi-card.total  { border-left-color: #4a6fa5; }
+  .kpi-card.site1  { border-left-color: #2e86ab; }
+  .kpi-card.site2  { border-left-color: #3cb371; }
+  .kpi-card.site3  { border-left-color: #f5a623; }
+  .kpi-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .kpi-card .value { font-size: 22px; font-weight: 700; }
+  .kpi-card .sub   { font-size: 11px; color: #aaa; margin-top: 4px; }
+  .kpi-card.total .value { color: #4a6fa5; }
+  .kpi-card.site1 .value { color: #2e86ab; }
+  .kpi-card.site2 .value { color: #3cb371; }
+  .kpi-card.site3 .value { color: #e07b00; }
+
+  /* Section headers */
+  .section-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a3a5c;
+    margin: 0 0 14px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e0e6ef;
+  }
+
+  /* Line charts */
+  .line-section { margin-bottom: 28px; }
+  .line-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .chart-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .chart-card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a3a5c;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .chart-card canvas { max-height: 280px; }
+
+  /* Pie charts */
+  .pie-section { margin-bottom: 28px; }
+  .pie-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  .pie-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  }
+  .pie-card h3 {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a3a5c;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .pie-card canvas { max-height: 300px; }
+
+  /* Anomaly note */
+  .anomaly-note {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    border-left: 4px solid #f5a623;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: #5d4037;
+    line-height: 1.7;
+  }
+  .anomaly-note strong { color: #e65100; }
+
+  /* Legend */
+  .legend-row {
+    display: flex;
+    gap: 18px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #555;
+  }
+  .legend-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* Footer */
+  .footer {
+    text-align: center;
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 20px;
+  }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: repeat(2,1fr); }
+    .line-grid { grid-template-columns: 1fr; }
+    .pie-grid  { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="dashboard-header">
+  <h1>🏯 花蓮三場地用電儀表板</h1>
+  <p>花蓮靜思堂 ／ 同心圓餐廳 ／ 全球寮房　｜　資料期間：2023.12 – 2026.03</p>
+</div>
+
+<!-- Anomaly Note -->
+<div class="anomaly-note">
+  ⚠️ <strong>資料異常說明：</strong>
+  2024年11月全球寮房用電記錄為 <strong>1,957,016 度</strong>（正常月份約 25,000~57,000 度），2024年12月亦異常高達 <strong>311,306 度</strong>。
+  依確認，因活動因素保留原始數據，惟圖表中全球寮房佔比因此偏高，請留意。
+  另，2025年9月全球寮房無數據，以 0 計入。
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-row" id="kpiRow"></div>
+
+<!-- Legend -->
+<div class="legend-row">
+  <div class="legend-item"><span class="legend-dot" style="background:#2e86ab"></span>花蓮靜思堂</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#3cb371"></span>同心圓餐廳</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#f5a623"></span>全球寮房</div>
+  <div class="legend-item"><span class="legend-dot" style="background:#4a6fa5"></span>三場地合計</div>
+</div>
+
+<!-- Line Charts Section -->
+<div class="line-section">
+  <div class="section-title">📈 各年度月用電折線圖（度）</div>
+  <div class="line-grid">
+    <div class="chart-card">
+      <h3>2024 年月用電</h3>
+      <canvas id="line2024"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>2025 年月用電</h3>
+      <canvas id="line2025"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>2026 年月用電（1–3月）</h3>
+      <canvas id="line2026"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Pie Charts Section -->
+<div class="pie-section">
+  <div class="section-title">🥧 年度用電佔比（2024 vs 2025）</div>
+  <div class="pie-grid">
+    <div class="pie-card">
+      <h3>2024 年　三場地用電比例</h3>
+      <canvas id="pie2024"></canvas>
+    </div>
+    <div class="pie-card">
+      <h3>2025 年　三場地用電比例</h3>
+      <canvas id="pie2025"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="footer">製作日期：2026-04-21 ｜ 資料來源：花蓮總用電度數_20231001-20260331_month.csv</div>
+
+<script>
+// ──────────────────────────────────────────────
+//  原始資料
+// ──────────────────────────────────────────────
+const months12 = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+const data2024 = {
+  靜思堂: [280809.49,231233.56,263814.72,337198.23,391069.52,372565.70,145396.64,366811.70,483595.85,404792.53,323683.40,232129.40],
+  同心圓: [94858.72,89687.54,104873.45,113585.38,137632.49,134259.16,173485.33,159557.69,193825.22,146321.53,120244.93,93857.03],
+  全球:   [25590.53,23952.92,29143.01,27367.36,29882.52,28440.22,31873.32,31031.44,33416.77,56796.16,1957016.05,311305.93],
+};
+data2024.合計 = data2024.靜思堂.map((v,i)=>v+data2024.同心圓[i]+data2024.全球[i]);
+
+const data2025 = {
+  靜思堂: [173620.33,158565.26,271582.47,279156.55,332973.85,362085.95,400319.25,429974.55,406418.01,420796.11,332368.43,286501.01],
+  同心圓: [69898.38,58260.81,89004.19,91558.39,107488.13,122494.73,142310.20,142634.40,153062.66,145940.11,114422.98,93819.14],
+  全球:   [24374.67,22542.77,29165.53,24677.54,26000.61,27702.80,31290.60,20056.83,0,2875.58,30802.37,29528.15],
+};
+data2025.合計 = data2025.靜思堂.map((v,i)=>v+data2025.同心圓[i]+data2025.全球[i]);
+
+const data2026 = {
+  靜思堂: [215375.90,181116.28,231870.48],
+  同心圓: [78941.46,68649.69,94151.82],
+  全球:   [27480.26,21706.16,31362.00],
+};
+data2026.合計 = data2026.靜思堂.map((v,i)=>v+data2026.同心圓[i]+data2026.全球[i]);
+
+// ──────────────────────────────────────────────
+//  KPI Cards
+// ──────────────────────────────────────────────
+function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+function fmtWan(n){ return (n/10000).toFixed(1)+'萬'; }
+
+const kpiData = [
+  { cls:'total', label:'2025 花蓮三場地年度合計', value: sum(data2025.合計) },
+  { cls:'site1', label:'2025 花蓮靜思堂',         value: sum(data2025.靜思堂) },
+  { cls:'site2', label:'2025 同心圓餐廳',         value: sum(data2025.同心圓) },
+  { cls:'site3', label:'2025 全球寮房',           value: sum(data2025.全球), note:'（含9月缺值以0計）' },
+];
+const row = document.getElementById('kpiRow');
+kpiData.forEach(d=>{
+  row.innerHTML += `<div class="kpi-card ${d.cls}">
+    <div class="label">${d.label}</div>
+    <div class="value">${fmtWan(d.value)}</div>
+    <div class="sub">${d.note||'度'}</div>
+  </div>`;
+});
+
+// ──────────────────────────────────────────────
+//  折線圖
+// ──────────────────────────────────────────────
+const COLORS = {
+  靜思堂: '#2e86ab',
+  同心圓: '#3cb371',
+  全球:   '#f5a623',
+  合計:   '#4a6fa5',
+};
+
+function makeLineDatasets(d, hasTwelve=true){
+  return [
+    { label:'花蓮靜思堂', data:d.靜思堂, borderColor:COLORS.靜思堂, backgroundColor:'rgba(46,134,171,0.08)',  tension:0.35, fill:false, pointRadius:4, borderWidth:2 },
+    { label:'同心圓餐廳', data:d.同心圓, borderColor:COLORS.同心圓, backgroundColor:'rgba(60,179,113,0.08)',  tension:0.35, fill:false, pointRadius:4, borderWidth:2 },
+    { label:'全球寮房',   data:d.全球,   borderColor:COLORS.全球,   backgroundColor:'rgba(245,166,35,0.08)',  tension:0.35, fill:false, pointRadius:4, borderWidth:2 },
+    { label:'三場地合計', data:d.合計,   borderColor:COLORS.合計,   backgroundColor:'rgba(74,111,165,0.05)',  tension:0.35, fill:false, pointRadius:4, borderWidth:2.5, borderDash:[6,3] },
+  ];
+}
+
+function drawLine(id, labels, datasets){
+  new Chart(document.getElementById(id), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { position:'bottom', labels:{ font:{size:11}, boxWidth:12, padding:8 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('zh-TW',{maximumFractionDigits:0})} 度`
+          }
+        }
+      },
+      scales: {
+        x: { grid:{ display:false }, ticks:{ font:{size:11} } },
+        y: {
+          ticks: {
+            font:{ size:10 },
+            callback: v => v>=10000 ? (v/10000).toFixed(0)+'萬' : v.toLocaleString()
+          },
+          grid: { color:'rgba(0,0,0,0.05)' }
+        }
+      }
+    }
+  });
+}
+
+drawLine('line2024', months12, makeLineDatasets(data2024));
+
+// 2025：第9月(index=8)全球寮房標為灰色空心點
+const ds2025 = makeLineDatasets(data2025);
+ds2025[2].pointBackgroundColor = data2025.全球.map((v,i)=> i===8?'#ccc':COLORS.全球);
+ds2025[2].pointRadius = data2025.全球.map((v,i)=> i===8?6:4);
+ds2025[2].pointStyle  = data2025.全球.map((v,i)=> i===8?'triangle':'circle');
+drawLine('line2025', months12, ds2025);
+
+drawLine('line2026', ['1月','2月','3月'], makeLineDatasets(data2026));
+
+// ──────────────────────────────────────────────
+//  圓餅圖
+// ──────────────────────────────────────────────
+function drawPie(id, d, year){
+  const t1=sum(d.靜思堂), t2=sum(d.同心圓), t3=sum(d.全球);
+  const total = t1+t2+t3;
+  new Chart(document.getElementById(id), {
+    type: 'doughnut',
+    data: {
+      labels: ['花蓮靜思堂','同心圓餐廳','全球寮房'],
+      datasets:[{
+        data: [t1, t2, t3],
+        backgroundColor:['#2e86ab','#3cb371','#f5a623'],
+        borderColor:['#fff','#fff','#fff'],
+        borderWidth: 3,
+        hoverOffset: 10
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '52%',
+      plugins: {
+        legend: { position:'bottom', labels:{ font:{size:12}, boxWidth:14, padding:12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const pct = (ctx.parsed/total*100).toFixed(1);
+              const val = ctx.parsed.toLocaleString('zh-TW',{maximumFractionDigits:0});
+              return ` ${ctx.label}: ${val} 度 (${pct}%)`;
+            }
+          }
+        }
+      }
+    },
+    plugins: [{
+      id: 'centerText_'+id,
+      afterDraw(chart){
+        const { width, height, ctx } = chart;
+        const cx = width/2;
+        const cy = (chart.chartArea.top + chart.chartArea.bottom)/2;
+        ctx.save();
+        ctx.font = 'bold 13px "Microsoft JhengHei", Arial';
+        ctx.fillStyle = '#1a3a5c';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(year+'年合計', cx, cy - 11);
+        ctx.font = '12px "Microsoft JhengHei", Arial';
+        ctx.fillStyle = '#888';
+        ctx.fillText((total/10000).toFixed(0)+' 萬度', cx, cy + 11);
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+drawPie('pie2024', data2024, '2024');
+drawPie('pie2025', data2025, '2025');
+</script>
+</body>
+</html>
